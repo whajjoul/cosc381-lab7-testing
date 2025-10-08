@@ -1,7 +1,7 @@
 from typing import Dict, List
-
 import pytest
 import copy
+from unittest import mock
 
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import (
@@ -47,7 +47,7 @@ def test_given_custom_anonymizer_then_we_manage_to_anonymize_successfully():
     )
     analyzer_result = RecognizerResult("CREDIT_CARD", 17, 36, 0.8)
     analyzer_result2 = RecognizerResult("URL", 32, 40, 0.8)
-    anonymizer_config = OperatorConfig("custom", {"lambda": lambda x: f"<ENTITY: {x}>"})
+    anonymizer_config = OperatorConfig("custom", {"lambda": lambda x: f"<ENTITY: {x}>"} )
     result = engine.anonymize(
         text, [analyzer_result, analyzer_result2], {"DEFAULT": anonymizer_config}
     ).text
@@ -92,13 +92,11 @@ def test_given_specific_anonymizer_then_we_use_it():
 
 
 @pytest.mark.parametrize(
-    # fmt: off
     "original_text,start,end",
     [
         ("hello world", 5, 12),
         ("hello world", 12, 16),
     ],
-    # fmt: on
 )
 def test_given_analyzer_result_with_an_incorrect_text_positions_then_we_fail(
     original_text, start, end
@@ -114,12 +112,10 @@ def test_given_analyzer_result_with_an_incorrect_text_positions_then_we_fail(
 
 
 @pytest.mark.parametrize(
-    # fmt: off
     "anonymizers, result_text",
     [
         ({"number": OperatorConfig("fake")}, "Invalid operator class 'fake'."),
     ],
-    # fmt: on
 )
 def test_given_invalid_json_for_anonymizers_then_we_fail(anonymizers, result_text):
     with pytest.raises(InvalidParamError, match=result_text):
@@ -161,7 +157,6 @@ def test_given_several_results_then_we_filter_them_and_get_correct_mocked_result
 
 
 @pytest.mark.parametrize(
-    # fmt: off
     "text, analyzer_results, expected",
     [
         (
@@ -174,8 +169,8 @@ def test_given_several_results_then_we_filter_them_and_get_correct_mocked_result
                 text="My name is BIP",
                 items=[
                     OperatorResult(11, 14, "PERSON", "BIP", "replace"),
-                ]
-            )
+                ],
+            ),
         ),
         (
             "My name is David   Jones",
@@ -187,8 +182,8 @@ def test_given_several_results_then_we_filter_them_and_get_correct_mocked_result
                 text="My name is BIP",
                 items=[
                     OperatorResult(11, 14, "PERSON", "BIP", "replace"),
-                ]
-            )
+                ],
+            ),
         ),
         (
             "My name is Jones, David",
@@ -201,27 +196,24 @@ def test_given_several_results_then_we_filter_them_and_get_correct_mocked_result
                 items=[
                     OperatorResult(11, 14, "PERSON", "BIP", "replace"),
                     OperatorResult(16, 19, "PERSON", "BIP", "replace"),
-                ]
-            )
+                ],
+            ),
         ),
         (
             "The phone book said: Jones 212-555-5555",
             [
                 RecognizerResult(start=21, end=26, score=0.8, entity_type="PERSON"),
-                RecognizerResult(
-                    start=27, end=39, score=0.8, entity_type="PHONE NUMBER"
-                ),
+                RecognizerResult(start=27, end=39, score=0.8, entity_type="PHONE NUMBER"),
             ],
             EngineResult(
                 text="The phone book said: BIP BEEP",
                 items=[
                     OperatorResult(21, 24, "PERSON", "BIP", "replace"),
                     OperatorResult(25, 29, "PHONE NUMBER", "BEEP", "replace"),
-                ]
-            )
+                ],
+            ),
         ),
-    ]
-    # fmt: on
+    ],
 )
 def test_given_sorted_analyzer_results_merge_entities_separated_by_white_space(
     text, analyzer_results, expected
@@ -238,6 +230,7 @@ def test_given_sorted_analyzer_results_merge_entities_separated_by_white_space(
     assert result.text == expected.text
     assert sorted(result.items) == sorted(expected.items)
 
+
 def test_given_analyzer_result_input_then_it_is_not_mutated():
     engine = AnonymizerEngine()
     text = "Jane Doe is a person"
@@ -246,39 +239,38 @@ def test_given_analyzer_result_input_then_it_is_not_mutated():
         RecognizerResult(start=5, end=8, entity_type="PERSON", score=1.0),
     ]
     copy_analyzer_results = copy.deepcopy(original_analyzer_results)
-    engine.anonymize(
-        text,
-        original_analyzer_results
-    )
-    # Compare length of the lists first and then values of contained objects
+    engine.anonymize(text, original_analyzer_results)
     assert len(original_analyzer_results) == len(copy_analyzer_results)
-    for original_result, copy_result in zip(
-        original_analyzer_results, copy_analyzer_results
-    ):
+    for original_result, copy_result in zip(original_analyzer_results, copy_analyzer_results):
         assert original_result == copy_result
+
 
 def test_given_unsorted_input_then_merged_correctly():
     engine = AnonymizerEngine()
     text = "Jane Doe is a person"
-    # Let's say the analyzer has detected 'Jane' and 'Doe' as separate people,
-    # and the results are not sorted by start, end.
     original_analyzer_results = [
         RecognizerResult(start=5, end=8, entity_type="PERSON", score=1.0),
         RecognizerResult(start=0, end=4, entity_type="PERSON", score=1.0),
     ]
-    # The whitespace merger should correctly merge the separate entities during the
-    # anonymization process.
-    anonymizer_result = engine.anonymize(
-        text,
-        original_analyzer_results
-    )
+    anonymizer_result = engine.anonymize(text, original_analyzer_results)
     assert anonymizer_result.text == "<PERSON> is a person"
 
-from unittest import mock
+
+# -----------------------------
+# ✅ Task 5 Implementation
+# -----------------------------
 @mock.patch("presidio_anonymizer.anonymizer_engine.logger")
 def test_given_conflict_input_then_merged_correctly(mock_logger):
-    # replace the following `pass` line with your test implementation
-    pass
+    engine = AnonymizerEngine()
+    text = "I'm George Washington Square Park."
+    original_analyzer_results = [
+        RecognizerResult(start=4, end=21, entity_type="PERSON", score=1.0),
+        RecognizerResult(start=4, end=33, entity_type="LOCATION", score=1.0),
+    ]
+
+    anonymizer_result = engine.anonymize(text, original_analyzer_results)
+    assert anonymizer_result.text == "I'm <LOCATION>."
+    mock_logger.debug.assert_called()
 
 
 def _operate(

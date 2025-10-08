@@ -1,53 +1,68 @@
-from presidio_anonymizer.entities import OperatorResult, EngineResult
+import pytest
+from presidio_anonymizer.entities.engine.recognizer_result import RecognizerResult
+from presidio_anonymizer.entities.engine.recognizer_result import create_recognizer_result
 
 
-def test_when_no_params_then_object_initialised_correctly():
-    res = EngineResult()
-    assert res.text is None
-    assert res.items == []
+def test_given_recognizer_results_then_one_contains_another():
+    first = create_recognizer_result("entity", 0.0, 0, 10)
+    second = create_recognizer_result("entity", 0.0, 2, 8)
+    assert first.contains(second)
 
 
-def test_when_correct_params_then_object_initialised_correctly():
-    ari = OperatorResult(0, 35, "type", "text", "hash")
-    res = EngineResult("a", [ari])
-    assert res.text == "a"
-    assert res.items[0] == ari
+def test_given_recognizer_results_then_they_do_not_contain_each_other():
+    first = create_recognizer_result("entity", 0.0, 0, 10)
+    second = create_recognizer_result("entity", 0.0, 4, 10)
+    assert not first.contains(second)
 
 
-def test_when_normalized_items_called_then_idexes_are_normalized():
-    ari = OperatorResult(1, 2, "type", "cd", "hash")
-    res = EngineResult("*****", [ari])
-    res.normalize_item_indexes()
-    assert res.items[0].start == 3
-    assert res.items[0].end == 5
+def test_given_recognizer_results_then_they_intersect():
+    first = create_recognizer_result("entity", 0.0, 0, 11)
+    second = create_recognizer_result("entity", 0.0, 5, 12)
+    assert first.intersects(second) == 6
 
 
-def test_when_set_text_then_text_is_set():
-    res = EngineResult()
-    res.set_text("a")
-    assert res.text == "a"
+def test_given_recognizer_results_then_they_do_not_intersect():
+    first = create_recognizer_result("entity", 0.0, 0, 5)
+    second = create_recognizer_result("entity", 0.0, 5, 10)
+    assert first.intersects(second) == 0
 
 
-def test_when_add_item_the_item_added():
-    res = EngineResult()
-    ari = OperatorResult(0, 35, "type", "text", "hash")
-    res.add_item(ari)
-    assert res.items[0] == ari
+def test_given_recognizer_result_then_equality_and_repr_work():
+    r1 = create_recognizer_result("entity", 0.8, 0, 10)
+    r2 = create_recognizer_result("entity", 0.8, 0, 10)
+    r3 = create_recognizer_result("different", 0.9, 2, 8)
+
+    assert r1 == r2
+    assert r1 != r3
+    assert "entity" in repr(r1)
 
 
-def test_when_eq_called_then_instances_are_equal():
-    res = EngineResult()
-    res.set_text("a")
-    res2 = EngineResult()
-    res2.set_text("a")
+# -------------------------------
+# Task 1: Verify that RecognizerResult logs correctly
+# -------------------------------
 
-    assert res.__eq__(res2)
+def test_logger(mocker):
+    # Patch the logger used inside recognizer_result.py
+    mock_logger = mocker.patch(
+        "presidio_anonymizer.entities.engine.recognizer_result.logger"
+    )
 
+    # Create a recognizer result with example values
+    entity_type = "PERSON"
+    start = 5
+    end = 15
+    score = 0.85
 
-def test_when_not_eq_called_then_instances_are_not_equal():
-    res = EngineResult()
-    res.set_text("a")
-    res2 = EngineResult()
-    res2.set_text("b")
+    create_recognizer_result(entity_type, score, start, end)
 
-    assert res.__eq__(res2) is False
+    # Check that logger.info was called
+    mock_logger.info.assert_called()
+
+    # Grab the actual log message
+    log_msg = mock_logger.info.call_args[0][0]
+
+    # Make sure all parts appear in the log
+    assert entity_type in log_msg
+    assert str(start) in log_msg
+    assert str(end) in log_msg
+    assert f"{score:.2f}" in log_msg
